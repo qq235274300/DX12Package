@@ -3089,14 +3089,15 @@ uniform int Extra_Information <
 					else if (Cursor_Type == 5)
 					{
 						//这样鼠标就看不到了 :(
-						/*float2 pixsize = float2(BUFFER_WIDTH, BUFFER_HEIGHT);
+						/*float2 pixsize = float2(1.0 / BUFFER_WIDTH, 1.0 /BUFFER_HEIGHT);
 						float2 offsetUV = texcoord.xy - Mousecoords * pixsize;
 						float2 sizeUV = float2(32.0,32.0) * pixsize;
 						float2 imgUV = offsetUV / sizeUV ;*/
 
-						float2 pixsize = float2(2.0/1561.0, 2.0/834.0);
+						float ScreenRatio = BUFFER_WIDTH / BUFFER_HEIGHT;
+						float2 pixsize = float2(1.0/ BUFFER_WIDTH, 1.0/ BUFFER_HEIGHT);
+						float2 sizeUV = float2(32.0, 32.0) * float2(2.0 / BUFFER_WIDTH, 2.0 / BUFFER_HEIGHT);
 						float2 offsetUV = texcoord.xy - (Mousecoords * pixsize);
-						float2 sizeUV = float2(32.0, 32.0) * pixsize;
 						float2 imgUV = offsetUV / sizeUV;
 						if (all(imgUV >= 0.0) && all(imgUV <= 1.0))
 						{
