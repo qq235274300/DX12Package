@@ -3089,7 +3089,7 @@ uniform int Extra_Information <
 					else if (Cursor_Type == 5)
 					{
 						float2 mouseUV = texcoord.xy - Mousecoords * pix;
-						float2 imgUV = mouseUV / (pix * 32.0) + 0.5;
+						float2 imgUV = mouseUV / (pix * 32.0);
 						if (all(imgUV >= 0.0) && all(imgUV <= 1.0))
 						{
 							float4 cursorSample = tex2D(CursorSampler, imgUV);
