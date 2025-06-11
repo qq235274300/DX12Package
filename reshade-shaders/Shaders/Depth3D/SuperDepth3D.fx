@@ -1,7 +1,7 @@
 	////----------------//
 	///**SuperDepth3D**///
 	//----------------////
-	#define SD3D "SuperDepth3D v4.8.3\n"
+	#define SD3D "SuperDepth3D v4.7.9\n"
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//* Depth Map Based 3D post-process shader
 	//* For Reshade 3.0+
@@ -385,11 +385,12 @@ namespace SuperDepth3D
 	#ifndef HDR_Compatible_Mode
 	    #define HDR_Compatible_Mode 0
 	#endif
-
-	//#ifndef Filter_Final_Image
-	    #define Filter_Image 0
-	//#endif
-
+	/* //Placed on Hold
+	#ifndef Filter_Final_Image
+	    #define Filter_Final_Image 0
+	#endif
+	*/
+	
 	#ifndef Legacy_Mode
 	    #define Legacy_Mode 0
 	#endif
@@ -1841,27 +1842,6 @@ uniform int Extra_Information <
 	uniform float timer < source = "timer"; >;
 	#define FLT_EPSILON  1.192092896e-07 // smallest such that Value + FLT_EPSILON != Value	
 	
-	#define CURSOR_TEXTURE_NAME "cursor.png"
-	#define CURSOR_TEXTURE_WIDTH 32
-	#define CURSOR_TEXTURE_HEIGHT 32
-
-	static const float2 CursorSize = float2(CURSOR_TEXTURE_WIDTH, CURSOR_TEXTURE_HEIGHT);
-
-	texture CursorTex < source = CURSOR_TEXTURE_NAME; >
-	{
-		Width = CURSOR_TEXTURE_WIDTH;
-		Height = CURSOR_TEXTURE_HEIGHT;
-	};
-
-	sampler CursorSampler
-	{
-		Texture = CursorTex;
-		MinFilter = POINT;
-		MagFilter = POINT;
-		AddressU = BORDER;
-		AddressV = BORDER;
-	};
-
 	float2 Divergence_Switch()
 	{
 		float2 Divergence = float2(100,Depth_Adjustment);
@@ -2104,14 +2084,7 @@ uniform int Extra_Information <
 	{
 		Texture = texzBufferBlurEx;
 	};
-	/*
-	texture texzBufferDir < pooled = true; > { Width = BUFFER_WIDTH / 4.0 ; Height = BUFFER_HEIGHT / 4.0; Format = RG8;  };
-
-	sampler SamplerzBuffer_Dir
-	{
-		Texture = texzBufferDir;
-	};	
-	*/	
+	
 	texture texzBufferN_M { Width = BUFFER_WIDTH ; Height = BUFFER_HEIGHT ; Format = R16F; }; //Do not use mips in this buffer
 	
 	sampler SamplerzBufferN_Mixed
@@ -2121,17 +2094,7 @@ uniform int Extra_Information <
 			MinFilter = POINT;
 			MipFilter = POINT;
 		};
-	//UPSample Pass
-	texture texzBufferN_U { Width = BUFFER_WIDTH ; Height = BUFFER_HEIGHT ; Format = R16F; }; //Do not use mips in this buffer
 	
-	sampler SamplerzBufferN_Up
-		{
-			Texture = texzBufferN_U;
-			MagFilter = POINT;
-			MinFilter = POINT;
-			MipFilter = POINT;
-		};
-
 	#if UI_MASK
 	texture TexMaskA < source = "DM_Mask_A.png"; > { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA8; };
 	sampler SamplerMaskA { Texture = TexMaskA;};
@@ -2979,26 +2942,6 @@ uniform int Extra_Information <
 					#endif
 	#endif
 	/////////////////////////////////////////////////////////////Cursor///////////////////////////////////////////////////////////////////////////
-	/*
-	float2 EdgeDetection(sampler Tex, float2 TC, float2 offset)
-	{
-	    float Left = tex2D(Tex, TC - float2(offset.x, 0)).x;
-	    float Right = tex2D(Tex, TC + float2(offset.x, 0)).x;
-	    float Up = tex2D(Tex, TC - float2(0, offset.y)).x;
-	    float Down = tex2D(Tex, TC + float2(0, offset.y)).x;
-	
-	    return float2(Down - Up, Right - Left);
-	}
-	*/
-	
-	float2 EdgeDetection(sampler Tex, float2 TC, float2 offset)
-	{
-	    float value = tex2D(Tex, TC).x;
-	    float dx = ddx_fine(value);
-	    float dy = ddy_fine(value);
-	    return float2(dy, dx);
-	}
-	
 	float4 EdgeMask(float4 color, float2 texcoords, float Adjust_Value)
 	{	
 		float2 center = float2(0.5,texcoords.y); // Direction of effect.   
@@ -3007,7 +2950,18 @@ uniform int Extra_Information <
 			  EdgeMask = clamp((BaseVal-Dist) / (BaseVal-Adjust_Value),0.125,1); 
 	    return color * EdgeMask;    
 	}
-	
+/*	
+	#define FLT_EPSILON  1.192092896e-07 // smallest such that Value + FLT_EPSILON != Value		
+	float DepthEdge(float Mod_Depth, float Depth, float2 texcoords, float Adjust_Value, float Masker,float LR_Masker)
+	{   Adjust_Value -= FLT_EPSILON;
+		float2 center = float2(0.5,texcoords.y); // Direction of effect.   
+		float BaseVal = 1.0,
+			  Dist  = distance( center, texcoords ) * 2.0, 
+			  EdgeMask = saturate((BaseVal-Dist) / (BaseVal-Adjust_Value)); 
+			  Masker = lerp(LR_Masker,max(Masker,LR_Masker),EdgeMask);
+	    return lerp(Depth,Mod_Depth, lerp(EdgeMask,Masker,0.5) );    
+	}
+*/		
 	float DepthEdge(float Mod_Depth, float Depth, float2 texcoords, float Adjust_Value )
 	{   Adjust_Value -= FLT_EPSILON;
 		float2 center = float2(0.5,texcoords.y); // Direction of effect.   
@@ -3061,41 +3015,99 @@ uniform int Extra_Information <
 	float4 MouseCursor(float3 texcoord , float2 pos, int Switch,int UI_Mode )
 	{ 
 			//DX9 fails if I don't use tex2Dlod here
-			float4 Out = UI_Mode ? tex2Dlod(BackBuffer_SD, float4(texcoord.xy, 0, 0)) : CSB(texcoord.xy);
-
-
-			float baseMouseSizePx = 32.0; // 你想要的标准鼠标大小（像素）
-			float2 screenSize = float2(BUFFER_WIDTH, BUFFER_HEIGHT);
-			float mouseScreenSize = baseMouseSizePx * (screenSize.y / 1080.0); // 1080p下为32像素
-			float2 cursorSizePx = float2(mouseScreenSize, mouseScreenSize);
-
-			float2 fragPx = texcoord.xy * screenSize;
-
-			// 鼠标左上角像素坐标
-			float2 mousePx = Mousecoords;
-
-			// 计算当前像素到鼠标热点左上角的相对像素偏移
-			float2 offsetPx = fragPx - mousePx;
-			float2 cursorUV = offsetPx / cursorSizePx;
-
-			//// 归一化采样UV（0-1，左上到右下）
-			//float MouseCursor_SizePx = 32.0; // 可由外部传递
-			//float2 cursorSizePx = float2(MouseCursor_SizePx, MouseCursor_SizePx);
-			//float2 cursorUV = offsetPx / cursorSizePx;
-
-			// 检查是否在光标图片范围内
-			if (all(cursorUV >= 0) && all(cursorUV <= 1))
+			float4 Out = UI_Mode ? tex2Dlod(BackBuffer_SD,float4(texcoord.xy,0,0)) : CSB(texcoord.xy),Color, Exp_Darks, Exp_Brights;
+			float Cursor;
+			if(Cursor_Type > 0 && Switch)
 			{
-				float4 cursorSample = tex2D(CursorSampler, cursorUV);
+				float CCScale = lerp(0.005,0.025,Scale(Cursor_SC.x,10,0));//scaling
+				float2 MousecoordsXY = texcoord.xy - (Mousecoords * pix), Scale_Cursor = float2(CCScale,CCScale* ARatio );
 
-				// 只绘制透明度大于阈值的部分，防止黑块
-				if (cursorSample.a > 0.1)
+				bool CLK_L = !Cursor_Lock;
+				
+				if(Cursor_Lock_Button_Selection == 1)
+					CLK_L = CLK_02;
+				if(Cursor_Lock_Button_Selection == 2)
+					CLK_L = CLK_03;					
+				if(Cursor_Lock_Button_Selection == 3)
+					CLK_L = CLK_04;	
+			
+				if (!CLK_L)
+				MousecoordsXY = texcoord.xy - float2(0.5,lerp(0.5,0.5725,Scale(Cursor_SC.z,10,0) ));
+
+				bool CLK_T = Toggle_Cursor;
+
+				if(Cursor_Toggle_Button_Selection == 1)
+					CLK_T = CLK_02;
+				if(Cursor_Toggle_Button_Selection == 2)
+					CLK_T = CLK_03;					
+				if(Cursor_Toggle_Button_Selection == 3)
+					CLK_T = CLK_04;
+					
+				if(!CLK_T)
 				{
-					Out.rgb = cursorSample.rgb;
+					if(Cursor_Type == 1)
+						Cursor = smoothstep( 0.0, 2 / pix.y, CCRetical( MousecoordsXY.xy, Scale_Cursor  * 0.75 ) ) ;
+					else if (Cursor_Type == 2)
+						Cursor = smoothstep( 0.0, 2 / pix.y, -CCCBox( MousecoordsXY.xy, CCScale * 0.375 ) ) ;
+					else if (Cursor_Type == 3)
+						Cursor = smoothstep( 0.0, 2 / pix.y, -CCBox( MousecoordsXY.xy, CCScale * 0.25 ) ) ;	
+					else if (Cursor_Type == 4)
+						Cursor = smoothstep( 0.0, 2 / pix.y, -CCCross( MousecoordsXY.xy, Scale_Cursor  * 0.75  ) ) ;			
+					else if (Cursor_Type == 5)
+						Cursor = smoothstep( 0.0, 2 / pix.y, -CCCursor( MousecoordsXY.xy, Scale_Cursor  * 0.5  ) ) ;
 				}
+	
+				// Cursor Color Array //
+				float3 CCArray[11] = {
+				float3(1,1,1),//White
+				float3(0,0,1),//Blue
+				float3(0,1,0),//Green
+				float3(1,0,0),//Red
+				float3(1,0,1),//Magenta
+				float3(0,1,1),
+				float3(1,1,0),
+				float3(1,0.4,0.7),
+				float3(1,0.64,0),
+				float3(0.5,0,0.5),
+				float3(0,0,0) //Black
+				};
+				int CSTT = clamp(Cursor_SC.y,0,10);
+				Color.rgb = CCArray[CSTT];
 			}
-
-			return float4(Out.rgb, texcoord.z);
+		#if Enable_Deband_Mode
+			if(Toggle_Deband)
+			{
+				//Code I asked Marty McFly | Pascal for and he let me have.
+				const float SEARCH_RADIUS = 1, Depth_Sample = tex2Dlod(SamplerzBufferN_P,float4(texcoord.xy,0,0)).x < 0.98;
+				const float2 magicdot = float2(0.75487766624669276, 0.569840290998);
+				const float3 magicadd = float3(0, 0.025, 0.0125) * dot(magicdot, 1);
+				float3 dither = frac(dot(pos.xy, magicdot) + magicadd);
+				
+				//LinerSampleDepth
+				float LinerSampleDepth = rcp( exp2( BUFFER_COLOR_BIT_DEPTH ) - 1.0);
+				
+				float2 shift;
+				sincos(6.283 * 30.694 * dither.x, shift.x, shift.y);
+				shift = shift * dither.x - 0.5;
+				
+				texcoord.xy = texcoord.xy + lerp(0,37.5 * pix,SEARCH_RADIUS);
+				
+				float3 scatter =  CSB(texcoord.xy + shift * lerp(0,pix * 75,SEARCH_RADIUS)).rgb;
+				float3 diff = Depth_Sample ? abs(Out.rgb - scatter) : all(Out.rgb - scatter); 
+					   diff.x = max(max(diff.x, diff.y), diff.z) ;
+				
+				Out.rgb = lerp(Out.rgb, scatter, diff.x <= LinerSampleDepth);
+			}
+		#endif				
+			
+			Out = Cursor ? Color.rgb : Out.rgb;
+		#if Inficolor_3D_Emulator
+			float3 ReGamma = regamma(Out.rgb), blend_RGB = float3(dot(ReGamma, float3(1,-1,-1)), dot(ReGamma, float3(-1,1,-1)),dot(ReGamma, float3(-1,-1,1))) ;
+	    	Out.r *= lerp(1,lerp(1, 0.5, smoothstep(-0.250, 0.0, blend_RGB.r)),Inficolor_Reduce_RGB.x);
+	    	Out.g *= lerp(1,lerp(1, 0.5, smoothstep(-0.375, 0.0, blend_RGB.g)),Inficolor_Reduce_RGB.y);
+	    	Out.b *= lerp(1,lerp(1, 0.5, smoothstep(-0.500, 0.0, blend_RGB.b)),Inficolor_Reduce_RGB.z);
+	    #endif
+			return float4(Out.rgb,texcoord.z);
 	}
 	
 	//////////////////////////////////////////////////////////Depth Map Information/////////////////////////////////////////////////////////////////////
@@ -3359,6 +3371,11 @@ uniform int Extra_Information <
 		}
 		
 		texcoord.xy /= SS_Scaling;
+		//texcoord.xy /= TEST;
+		
+        //Manual Adjustment
+		//texcoord *= 1-clamp(SS_Scaling_Adjuster,-0.5,0.5);	
+
 	
 		float4 DM = Depth(TC_SP(texcoord).xy).xxxx;
 		float R, G, B, A, WD = WeaponDepth(TC_SP(texcoord).xy).x, CoP = WeaponDepth(TC_SP(texcoord).xy).y, CutOFFCal = (CoP/DMA()) * 0.5; //Weapon Cutoff Calculation
@@ -4261,7 +4278,7 @@ uniform int Extra_Information <
 		Linear_Out = float2(Set_Depth.x,HF_Info);
 	}
 	
-	void zBuffer_Blur(in float4 position : SV_Position, in float2 texcoord : TEXCOORD, out float2 Blur_Out : SV_Target0, out float2 Info_Ex : SV_Target1, out float2 Direction : SV_Target2)
+	void zBuffer_Blur(in float4 position : SV_Position, in float2 texcoord : TEXCOORD, out float2 Blur_Out : SV_Target0, out float2 Info_Ex : SV_Target1)
 	{   
 		float2 StoredTC = texcoord;
 		float Invert_Depth_Mask =  1-smoothstep(0.0,0.5,PrepDepth( StoredTC * float2(2.0, 1) - float2(1.0,0.0)  )[1][1]);
@@ -4347,50 +4364,6 @@ uniform int Extra_Information <
 		float S_T_Adjust = min(1.25,abs(Divergence_Switch().y) * 0.01);// * RCP_Diverge;
 	    return abs(lerp(0.01f,1.0f,S_T_Adjust));
 	}
-
-	float2 SDAA(sampler tex,float2 texcoord)
-	{   
-		float2 SDAA;
-		float AA_Power = 0.625;
-		float Result = tex2D(tex, texcoord).x * (1.0-AA_Power);
-		float2 N, Offset = rcp( tex2Dsize(DepthBuffer) );
-		float2 X = float2(Offset.x, 0.0), Y = float2(0.0, Offset.y);
-
-		// Calculate Edge
-		float2 Edge = EdgeDetection(tex,texcoord, Offset);
-		
-		//Calculate Gradient from edge    
-
-		// Horizontal directions & Vertical directions
-		Edge += EdgeDetection( tex, texcoord - X, Offset);  // Move left (negative X direction)
-		Edge += EdgeDetection( tex, texcoord + X, Offset);  // Move right (positive X direction)
-		Edge += EdgeDetection( tex, texcoord - Y, Offset);  // Move down (negative Y direction)
-		Edge += EdgeDetection( tex, texcoord + Y, Offset);  // Move up (positive Y direction)
-
-		// Diagonal directions
-		Edge += EdgeDetection( tex, texcoord - X - Y, Offset);  // Move down-left (negative X, negative Y)
-		Edge += EdgeDetection( tex, texcoord - X + Y, Offset);  // Move up-left (negative X, positive Y)
-		Edge += EdgeDetection( tex, texcoord + X - Y, Offset);  // Move down-right (positive X, negative Y)
-		Edge += EdgeDetection( tex, texcoord + X + Y, Offset);  // Move up-right (positive X, positive Y)
-	    
-		//Revert gradient
-		N = float2(Edge.x,-Edge.y);
-
-		// Like DLAA calculate mask from gradient above.
-		const float Mask = length(N);
-
-		// Will Be Making changes for short edges and long later.
-		const float AA_Adjust = AA_Power * rcp(4);
-		Result += tex2D(tex, texcoord+(N * 0.5)*Offset).x * AA_Adjust;
-		Result += tex2D(tex, texcoord-(N * 0.5)*Offset).x * AA_Adjust;
-		Result += tex2D(tex, texcoord+N*Offset).x * AA_Adjust;
-		Result += tex2D(tex, texcoord-N*Offset).x * AA_Adjust;		
-		
-		// Set result
-		SDAA = float2(Result,Mask);
-		
-		return SDAA;
-	}
 	
 	static const float  VMW_Array[10] = { 0.0, 1.0, 2.0, 3.0 , 3.5 , 4.0, 4.5 , 5.0, 5.5, 6.0 };	
 	float GetDB(float2 texcoord)
@@ -4414,14 +4387,7 @@ uniform int Extra_Information <
 			texcoord.xy = texcoord.yx;
 		#endif
 		float LR_Depth_Mask = 1-saturate(tex2Dlod(SamplerzBuffer_BlurN, float4( texcoord  * float2(0.5,1) + float2(0.5,0), 0, 2.5 ) ).x * 5.0);	
-
-		//Depth Base AA
-	    float2 DBAA = SDAA(SamplerzBufferN_P,texcoord);
-		float Mask = saturate(DBAA.y * 4);
-		float Base_Depth_Buffer = tex2Dlod(SamplerzBufferN_L, float4( texcoord, 0, 0) ).x;
-		float2 Base_Depth_Buffers = float2(Base_Depth_Buffer,tex2Dlod(SamplerzBufferN_P, float4( texcoord, 0, 0) ).x);
-		
-		Base_Depth_Buffers.x = lerp(Base_Depth_Buffers.x, DBAA.x, Mask);
+		float2 Base_Depth_Buffers = float2(tex2Dlod(SamplerzBufferN_L, float4( texcoord, 0, 0) ).x,tex2Dlod(SamplerzBufferN_P, float4( texcoord, 0, 0) ).x);
 	
 		float GetDepth = smoothstep(0,1, tex2Dlod(SamplerzBufferN_P, float4(texcoord,0, 1) ).y), Sat_Range = saturate(Range_Blend);
 		
@@ -4644,50 +4610,11 @@ uniform int Extra_Information <
 			
 		//MixOut = MixOut;
 	}
-
-	void swap(inout float a, inout float b)
-	{
-	    float t = a;
-	    a = min(t, b);
-	    b = max(t, b);
-	}
-
-	float Median3x3(sampler2D Tex, float2 TC, float2 Depth_Size)
-	{
-	    static const float2 offsets[9] = { float2(-1, -1), float2( 0, -1), float2( 1, -1),
-									       float2(-1,  0), float2( 0,  0), float2( 1,  0),
-									       float2(-1,  1), float2( 0,  1), float2( 1,  1) };
-	    float s[9];
-	    for (int i = 0; i < 9; ++i)
-	    {
-	        s[i] = tex2Dlod(Tex, float4(TC + offsets[i] * Depth_Size, 0, 0)).x;
-		}
-	    
-	    swap(s[1], s[2]); swap(s[4], s[5]); swap(s[7], s[8]);
-	    swap(s[0], s[1]); swap(s[3], s[4]); swap(s[6], s[7]);
-	    swap(s[1], s[2]); swap(s[4], s[5]); swap(s[7], s[8]);
-	    swap(s[0], s[3]); swap(s[5], s[8]); swap(s[4], s[7]);
-	    swap(s[3], s[6]); swap(s[1], s[4]); swap(s[2], s[5]);
-	    swap(s[4], s[7]); swap(s[4], s[2]); swap(s[6], s[4]);
-	    swap(s[4], s[2]);
-		
-		// Median
-	    return s[4];
-	}	
 	
-	void Up_Z(in float4 position : SV_Position, in float2 texcoord : TEXCOORD, out float UpOut : SV_Target0)
+	float GetMixed(float2 texcoord) //Sensitive Buffer.
 	{
-		float2 Depth_Size = rcp( tex2Dsize(DepthBuffer) );	
-		float Median = Median3x3(SamplerzBufferN_Mixed, texcoord, Depth_Size);
-		UpOut = Median;	  					    	
-	}	
-	
-	float2 GetMixed(float2 texcoord) //Sensitive Buffer.
-	{
-		float BufferA = tex2Dlod(SamplerzBufferN_Up,float4(texcoord,0,0)).x, 
-			  BufferB = tex2Dlod(SamplerzBufferN_Mixed,float4(texcoord,0,0)).x;
 		//Careful not to shift here because we run out of memory in DX9
-		return float2(BufferA,BufferB);//Do not use mips on this buffer
+		return tex2Dlod(SamplerzBufferN_Mixed,float4(texcoord,0,0)).x;//Do not use mips on this buffer
 	}
 	#if !Use_2D_Plus_Depth
 	float2 De_Art(float2 sp, float2 Shift_n_Zoom)
@@ -4805,29 +4732,24 @@ uniform int Extra_Information <
 				//Offsets listed here Max Seperation is 3% - 8% of screen space with Depth Offsets & Netto layer offset change based on MS.
 				float deltaCoordinates = MS.x * LayerDepth, CurrentDepthMapValue = min(1,GetMixed( ParallaxCoord).x), CurrentLayerDepth = -Re_Scale_WN().x,
 					  DB_Offset = US_Offset * TP * pix.x;
-					  
-		    	float blend, threshold = 0.005; 
-				[loop] //Steep parallax mapping Ray Marcher
-				while ( CurrentDepthMapValue >= CurrentLayerDepth )
-				{   
-					if(CurrentDepthMapValue < CurrentLayerDepth)//Had to do this check to keep it from crashing
-						break;
-					// Shift coordinates horizontally in linear fasion
-				    ParallaxCoord.x -= deltaCoordinates; 
-				    // Get depth value at current coordinates
-				    float G_Depth = GetMixed(ParallaxCoord).x , C_Depth = GetMixed( De_Art(ParallaxCoord, Artifacting_Adjust ) ).y;
-					float diff = abs(G_Depth - C_Depth);
-				
-				    // Sensitivity threshold
-				    blend = saturate(diff / threshold);
-				    
-				    if ( applyArtifacting && blend)
-						CurrentDepthMapValue = min(G_Depth.x, C_Depth);//GetMixed( De_Art(ParallaxCoord, Artifacting_Adjust ) ).x);
-					else
-						CurrentDepthMapValue = G_Depth.x;				
-				    // Get depth of next layer
-				    CurrentLayerDepth += LayerDepth;
-				}
+	
+			
+			[loop] //Steep parallax mapping Ray Marcher
+			while ( CurrentDepthMapValue >= CurrentLayerDepth )
+			{   
+				if(CurrentDepthMapValue < CurrentLayerDepth)//Had to do this check to keep it from crashing
+					break;
+				// Shift coordinates horizontally in linear fasion
+			    ParallaxCoord.x -= deltaCoordinates; 
+			    // Get depth value at current coordinates
+			    float G_Depth = GetMixed(ParallaxCoord).x;  
+			    if ( applyArtifacting )
+					CurrentDepthMapValue = min(G_Depth.x, GetMixed( De_Art(ParallaxCoord, Artifacting_Adjust ) ).x);
+				else
+					CurrentDepthMapValue = G_Depth.x;				
+			    // Get depth of next layer
+			    CurrentLayerDepth += LayerDepth;
+			}
 			
 				if( View_Mode <= 1 || View_Mode >= 5 )	
 			   	ParallaxCoord.x += DB_Offset * 0.125;
@@ -4851,11 +4773,8 @@ uniform int Extra_Information <
 				float Weight = weight;
 				//ParallaxCoord.x = lerp( ParallaxCoord.x, PrevParallaxCoord.x, weight); //Old		
 				ParallaxCoord.x = PrevParallaxCoord.x * weight + ParallaxCoord.x * (1 - Weight);
-				//This is to limit artifacts.
-				if(View_Mode >= 2 && View_Mode <= 4)
-					ParallaxCoord.x += DB_Offset * 2.0;
-				else	
-					ParallaxCoord.x += lerp(DB_Offset * 1.5, DB_Offset * 2.5, DD_Spread.y );// Also boost in some areas using DD_Map
+				//This is to limit artifacts.	
+				ParallaxCoord.x += lerp(DB_Offset, DB_Offset * 2.0, DD_Spread.y );// Also boost in some areas using DD_Map
 	
 			#if Reconstruction_Mode
 				if(Reconstruction_Type == 1 )
@@ -5366,8 +5285,7 @@ uniform int Extra_Information <
 			}
 			#endif
 		#endif
-		//Debug Here
-		//Left_Right.rgb *= 1-Left_Right.w;
+				//Left_Right.rgb *= 1-Left_Right.w;
 		//Convert Stereo
 		#if Reconstruction_Mode || Virtual_Reality_Mode
 		color.rgb = Left_Right.rgb;
@@ -5510,28 +5428,23 @@ uniform int Extra_Information <
 	    return Result;
 	}
 	#endif
-
-	#if Filter_Image
-	float4 Dir(sampler Tex, float2 texcoord,float dx, float dy, int Set_Direction)
+	/* //Placed on Hold
+	#if Filter_Final_Image
+	float4 Dir(sampler Tex, float2 texcoord,float dx, float dy) //Load Pixel
 	{	   texcoord += float2(dx, dy);
-			float3 Pattern = float3( floor(texcoord.y*Res.y) + floor(texcoord.x*Res.x), floor(texcoord.x*Res.x), floor(texcoord.y*Res.y));
-			float Pattern_Type = fmod(Pattern.x,2); //CB
-			if(Set_Direction)
-				return Pattern_Type ? 0 : tex2D(Tex, texcoord ) ;
-			else
-				return Pattern_Type ? tex2D(Tex, texcoord ) : 0 ;
+			return tex2D(Tex, texcoord ) ;
 	}
 	
-	float4 CBBlend(sampler Tex,float2 texcoord,int Switcher )
+	float4 CBBlend(sampler Tex,float2 texcoord)
 	{    
 		if ((texcoord.x > 1 || texcoord.x < 0) || (texcoord.y > 1 || texcoord.y < 0))
 		    return 0;
 
-		float4 Up     = Dir(Tex,texcoord, 0.0  ,-pix.y, Switcher),
-		       Down   = Dir(Tex,texcoord, 0.0  , pix.y, Switcher),
-		       Left   = Dir(Tex,texcoord,-pix.x, 0.0  , Switcher),
-		       Right  = Dir(Tex,texcoord, pix.x, 0.0  , Switcher),
-			   Center = Dir(Tex,texcoord, 0.0  , 0.0  , Switcher), 
+		float4 Up     = Dir(Tex,texcoord, 0.0  ,-pix.y),
+		       Down   = Dir(Tex,texcoord, 0.0  , pix.y),
+		       Left   = Dir(Tex,texcoord,-pix.x, 0.0  ),
+		       Right  = Dir(Tex,texcoord, pix.x, 0.0  ),
+			   Center = Dir(Tex,texcoord, 0.0  , 0.0  ), 
                Result;
 	
 	    float verticalWeight = colorDiffBlend(Up.rgb, Down.rgb);
@@ -5540,17 +5453,11 @@ uniform int Extra_Information <
 		float4 HorzResult = (Left + Right) * horizontalWeight;
 	    
 		Result = Center + (VertResult + HorzResult) * 0.5 * rcp(verticalWeight + horizontalWeight);
-		
-		float Mask = length(EdgeDetection(Tex, texcoord, pix));
-	
-	    return lerp(tex2D(Tex,texcoord),Result,Mask);
-	}
-
-	float4 MixModeBlend(float4 position : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
-	{  
-	    return ( CBBlend(BackBuffer_SD,texcoord,0) + CBBlend(BackBuffer_SD,texcoord,1) ) * 0.5;
+			
+	    return Result * 0.5;
 	}
 	#endif	
+	*/
 	////////////////////////////////////////////////////////////////////Logo////////////////////////////////////////////////////////////////////////////
 	#define _f float // Text rendering code copied/pasted from https://www.shadertoy.com/view/4dtGD2 by Hamneggs
 	static const _f CH_A    = _f(0x69f99), CH_B    = _f(0x79797), CH_C    = _f(0xe111e),
@@ -5920,9 +5827,6 @@ uniform int Extra_Information <
 				Color = lerp( Value * 0.5, Value, S_More );
 				*/
 				//Color = Parallax(TEST, texcoord, 0).z;
-				//float2 DBAA = SDAA(SamplerzBufferN_P,texcoord);
-						//float Mask = saturate(DBAA.y * 4);
-				//		Color = DBAA.x;
 				return Color.rgba;
 			}
 		#endif
@@ -6437,8 +6341,15 @@ uniform int Extra_Information <
 	    }
 	    return centerColor;
 	}
+	/* //Placed on Hold
+	#if Filter_Final_Image
+	float4 MixModeBlend(float4 position : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+	{  
 
-
+	    return CBBlend(BackBuffer_SD,texcoord);
+	}
+	#endif	
+	*/
 	float4 SmartSharpJr(float4 position : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 	{  
 		float4 Color = tex2D(BackBuffer_SD,texcoord);//dot(Color.rgb,0.333);//
@@ -6530,14 +6441,6 @@ uniform int Extra_Information <
 	< ui_tooltip = "Suggestion : You Can Enable 'Performance Mode Checkbox,' in the lower bottom right of the ReShade's Main UI.\n"
 				   			 "Do this once you set your 3D settings of course."; >
 	{	
-		#if Filter_Image
-			pass BlendOut
-		{
-			VertexShader = PostProcessVS;
-			PixelShader = MixModeBlend;
-		}
-		#endif
-	
 		#if D_Frame
 			pass Delay_Frame
 		{
@@ -6564,7 +6467,6 @@ uniform int Extra_Information <
 			PixelShader = zBuffer_Blur;
 			RenderTarget0 = texzBufferBlurN;
 			RenderTarget1 = texzBufferBlurEx;
-			//RenderTarget2 = texzBufferDir;
 		}
 			pass DepthBuffer
 		{
@@ -6581,19 +6483,11 @@ uniform int Extra_Information <
 			RenderTarget0 = texzBufferN_P;
 			RenderTarget1 = texzBufferN_L;
 		}
-		
 			pass MixDepth
 		{
 			VertexShader = PostProcessVS;
 			PixelShader = Mix_Z;
 			RenderTarget0 = texzBufferN_M;
-		}
-
-			pass DepthUpscaling
-		{
-			VertexShader = PostProcessVS;
-			PixelShader = Up_Z;
-			RenderTarget0 = texzBufferN_U;
 		}
 
 		#if Reconstruction_Mode || Virtual_Reality_Mode || Anaglyph_Mode
@@ -6616,7 +6510,15 @@ uniform int Extra_Information <
 			VertexShader = PostProcessVS;
 			PixelShader = Out;
 		}
-
+		/* //Placed on Hold
+		#if Filter_Final_Image
+			pass BlendOut
+		{
+			VertexShader = PostProcessVS;
+			PixelShader = MixModeBlend;
+		}
+		#endif
+		*/
 		#if !REST_UI_Mode
 				pass USMOut
 			{
