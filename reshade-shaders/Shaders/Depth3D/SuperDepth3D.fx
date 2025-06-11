@@ -1842,6 +1842,39 @@ uniform int Extra_Information <
 	uniform float timer < source = "timer"; >;
 	#define FLT_EPSILON  1.192092896e-07 // smallest such that Value + FLT_EPSILON != Value	
 	
+	#ifndef CURSOR_TEXTURE_NAME
+	#define CURSOR_TEXTURE_NAME "cursor.png"
+	#endif
+
+	#ifndef CURSOR_TEXTURE_WIDTH
+	#define CURSOR_TEXTURE_WIDTH 32
+	#endif
+
+	#ifndef CURSOR_TEXTURE_HEIGHT
+	#define CURSOR_TEXTURE_HEIGHT 32
+	#endif
+
+	static const float2 CursorSize = float2(
+		CURSOR_TEXTURE_WIDTH,
+		CURSOR_TEXTURE_HEIGHT);
+
+	texture CursorTex < source = CURSOR_TEXTURE_NAME; >
+	{
+		Width = CursorSize.x;
+		Height = CursorSize.y;
+	};
+
+	sampler CursorSampler
+	{
+		Texture = CursorTex;
+		MinFilter = POINT;
+		MagFilter = POINT;
+		MipFilter = POINT;
+		AddressU = BORDER;
+		AddressV = BORDER;
+	};
+
+
 	float2 Divergence_Switch()
 	{
 		float2 Divergence = float2(100,Depth_Adjustment);
@@ -3054,7 +3087,17 @@ uniform int Extra_Information <
 					else if (Cursor_Type == 4)
 						Cursor = smoothstep( 0.0, 2 / pix.y, -CCCross( MousecoordsXY.xy, Scale_Cursor  * 0.75  ) ) ;			
 					else if (Cursor_Type == 5)
-						Cursor = smoothstep( 0.0, 2 / pix.y, -CCCursor( MousecoordsXY.xy, Scale_Cursor  * 0.5  ) ) ;
+					{
+						float2 mouseUV = texcoord.xy - Mousecoords * pix;
+						float2 imgUV = mouseUV / (pix * 32.0) + 0.5;
+						if (all(imgUV >= 0.0) && all(imgUV <= 1.0))
+						{
+							float4 cursorSample = tex2D(CursorSampler, imgUV);
+							Cursor = cursorSample.a;       // 使用alpha通道作为遮罩
+							Color.rgb = cursorSample.rgb;  // 用贴图颜色替换光标颜色
+						}
+					}
+					
 				}
 	
 				// Cursor Color Array //
