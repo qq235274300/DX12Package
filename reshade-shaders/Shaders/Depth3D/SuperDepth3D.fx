@@ -3088,11 +3088,15 @@ uniform int Extra_Information <
 						Cursor = smoothstep( 0.0, 2 / pix.y, -CCCross( MousecoordsXY.xy, Scale_Cursor  * 0.75  ) ) ;			
 					else if (Cursor_Type == 5)
 					{
-						//float2 mouseUV = texcoord.xy - Mousecoords * pix;
-						float2 pixsize = float2(BUFFER_WIDTH, BUFFER_HEIGHT);
+						//这样鼠标就看不到了 :(
+						/*float2 pixsize = float2(BUFFER_WIDTH, BUFFER_HEIGHT);
 						float2 offsetUV = texcoord.xy - Mousecoords * pixsize;
 						float2 sizeUV = float2(32.0,32.0) * pixsize;
-						float2 imgUV = offsetUV / sizeUV ;
+						float2 imgUV = offsetUV / sizeUV ;*/
+
+						float2 offsetUV = texcoord.xy - (Mousecoords * pix);
+						float2 sizeUV = float2(32.0, 32.0) * pix;
+						float2 imgUV = offsetUV / sizeUV;
 						if (all(imgUV >= 0.0) && all(imgUV <= 1.0))
 						{
 							float4 cursorSample = tex2D(CursorSampler, imgUV);
