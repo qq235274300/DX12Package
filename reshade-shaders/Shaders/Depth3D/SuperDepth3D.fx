@@ -1483,7 +1483,7 @@ uniform int SuperDepth3D <
 		ui_tooltip = "Choose the cursor type you like to use.\n"
 								 "Default is Zero.";
 		ui_category = "Cursor Adjustments";
-	> = 0;
+	> = 5;
 	
 	uniform int3 Cursor_SC <
 		#if Compatibility
@@ -1536,6 +1536,11 @@ uniform int SuperDepth3D <
 		ui_tooltip = "Turns Screen Cursor Off and On without cycling, once set to the option above.";
 		ui_category = "Cursor Adjustments";
 	> = false;
+
+	uniform bool Toggle_Cursor_Control <
+		ui_hidden = true;
+	> = false;
+
 	#if REST_UI_Mode
 	uniform bool Toggle_REST <
 		ui_label = " Cursor Switch";
@@ -3050,35 +3055,50 @@ uniform int Extra_Information <
 			//DX9 fails if I don't use tex2Dlod here
 			float4 Out = UI_Mode ? tex2Dlod(BackBuffer_SD,float4(texcoord.xy,0,0)) : CSB(texcoord.xy),Color, Exp_Darks, Exp_Brights;
 			float Cursor;
-			if(Toggle_Cursor) //Cursor_Type > 0 && Switch
+			if(Toggle_Cursor_Control) //Cursor_Type > 0 && Switch
 			{
 				float CCScale = lerp(0.005,0.025,Scale(Cursor_SC.x,10,0));//scaling
 				float2 MousecoordsXY = texcoord.xy - (Mousecoords * pix), Scale_Cursor = float2(CCScale,CCScale* ARatio );
 
-				bool CLK_L = !Cursor_Lock;
+				//bool CLK_L = !Cursor_Lock;
+
+				bool CLK_L = true;
 				
-				if(Cursor_Lock_Button_Selection == 1)
+				/*if(Cursor_Lock_Button_Selection == 1)
 					CLK_L = CLK_02;
 				if(Cursor_Lock_Button_Selection == 2)
 					CLK_L = CLK_03;					
 				if(Cursor_Lock_Button_Selection == 3)
-					CLK_L = CLK_04;	
+					CLK_L = CLK_04;	*/
 			
 				if (!CLK_L)
 				MousecoordsXY = texcoord.xy - float2(0.5,lerp(0.5,0.5725,Scale(Cursor_SC.z,10,0) ));
 
-				bool CLK_T = Toggle_Cursor;
+				bool CLK_T = Toggle_Cursor_Control;
+				
 
-				if(Cursor_Toggle_Button_Selection == 1)
+				/*if(Cursor_Toggle_Button_Selection == 1)
 					CLK_T = CLK_02;
 				if(Cursor_Toggle_Button_Selection == 2)
 					CLK_T = CLK_03;					
 				if(Cursor_Toggle_Button_Selection == 3)
-					CLK_T = CLK_04;
+					CLK_T = CLK_04;*/
 					
-				if(Toggle_Cursor)//!CLK_T
+				if(Toggle_Cursor_Control)//!CLK_T
 				{
-					if(Cursor_Type == 1)
+					float ScreenRatio = BUFFER_WIDTH / BUFFER_HEIGHT;
+					float2 pixsize = float2(1.0 / BUFFER_WIDTH, 1.0 / BUFFER_HEIGHT);
+					float2 sizeUV = float2(32.0, 32.0) * float2(2.0 / BUFFER_WIDTH, 2.0 / BUFFER_HEIGHT);
+					float2 offsetUV = texcoord.xy - (Mousecoords * pixsize);
+					float2 imgUV = offsetUV / sizeUV;
+					if (all(imgUV >= 0.0) && all(imgUV <= 1.0))
+					{
+						float4 cursorSample = tex2D(CursorSampler, imgUV);
+						Cursor = cursorSample.a;       // 使用alpha通道作为遮罩
+						Color.rgb = cursorSample.rgb;  // 用贴图颜色替换光标颜色
+					}
+
+				/*	if(Cursor_Type == 1)
 						Cursor = smoothstep( 0.0, 2 / pix.y, CCRetical( MousecoordsXY.xy, Scale_Cursor  * 0.75 ) ) ;
 					else if (Cursor_Type == 2)
 						Cursor = smoothstep( 0.0, 2 / pix.y, -CCCBox( MousecoordsXY.xy, CCScale * 0.375 ) ) ;
@@ -3088,46 +3108,31 @@ uniform int Extra_Information <
 						Cursor = smoothstep( 0.0, 2 / pix.y, -CCCross( MousecoordsXY.xy, Scale_Cursor  * 0.75  ) ) ;			
 					else if (Cursor_Type == 5)
 					{
-						//这样鼠标就看不到了 :(
-						/*float2 pixsize = float2(1.0 / BUFFER_WIDTH, 1.0 /BUFFER_HEIGHT);
-						float2 offsetUV = texcoord.xy - Mousecoords * pixsize;
-						float2 sizeUV = float2(32.0,32.0) * pixsize;
-						float2 imgUV = offsetUV / sizeUV ;*/
-
-						float ScreenRatio = BUFFER_WIDTH / BUFFER_HEIGHT;
-						float2 pixsize = float2(1.0/ BUFFER_WIDTH, 1.0/ BUFFER_HEIGHT);
-						float2 sizeUV = float2(32.0, 32.0) * float2(2.0 / BUFFER_WIDTH, 2.0 / BUFFER_HEIGHT);
-						float2 offsetUV = texcoord.xy - (Mousecoords * pixsize);
-						float2 imgUV = offsetUV / sizeUV;
-						if (all(imgUV >= 0.0) && all(imgUV <= 1.0))
-						{
-							float4 cursorSample = tex2D(CursorSampler, imgUV);
-							Cursor = cursorSample.a;       // 使用alpha通道作为遮罩
-							Color.rgb = cursorSample.rgb;  // 用贴图颜色替换光标颜色
-						}
-					}
+						
+						
+					}*/
 					
 				}
 	
 				// Cursor Color Array //
-				float3 CCArray[11] = {
-				float3(1,1,1),//White
-				float3(0,0,1),//Blue
-				float3(0,1,0),//Green
-				float3(1,0,0),//Red
-				float3(1,0,1),//Magenta
-				float3(0,1,1),
-				float3(1,1,0),
-				float3(1,0.4,0.7),
-				float3(1,0.64,0),
-				float3(0.5,0,0.5),
-				float3(0,0,0) //Black
-				};
-				if (Cursor_Type != 5)
-				{
-					int CSTT = clamp(Cursor_SC.y, 0, 10);
-					Color.rgb = CCArray[CSTT];
-				}
+				//float3 CCArray[11] = {
+				//float3(1,1,1),//White
+				//float3(0,0,1),//Blue
+				//float3(0,1,0),//Green
+				//float3(1,0,0),//Red
+				//float3(1,0,1),//Magenta
+				//float3(0,1,1),
+				//float3(1,1,0),
+				//float3(1,0.4,0.7),
+				//float3(1,0.64,0),
+				//float3(0.5,0,0.5),
+				//float3(0,0,0) //Black
+				//};
+				//if (Cursor_Type != 5)
+				//{
+				//	int CSTT = clamp(Cursor_SC.y, 0, 10);
+				//	Color.rgb = CCArray[CSTT];
+				//}
 				
 			}
 		#if Enable_Deband_Mode
