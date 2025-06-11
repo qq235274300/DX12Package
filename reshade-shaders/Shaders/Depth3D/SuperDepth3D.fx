@@ -3050,7 +3050,7 @@ uniform int Extra_Information <
 			//DX9 fails if I don't use tex2Dlod here
 			float4 Out = UI_Mode ? tex2Dlod(BackBuffer_SD,float4(texcoord.xy,0,0)) : CSB(texcoord.xy),Color, Exp_Darks, Exp_Brights;
 			float Cursor;
-			if(Cursor_Type > 0 && Switch)
+			if(Toggle_Cursor) //Cursor_Type > 0 && Switch
 			{
 				float CCScale = lerp(0.005,0.025,Scale(Cursor_SC.x,10,0));//scaling
 				float2 MousecoordsXY = texcoord.xy - (Mousecoords * pix), Scale_Cursor = float2(CCScale,CCScale* ARatio );
@@ -3076,7 +3076,7 @@ uniform int Extra_Information <
 				if(Cursor_Toggle_Button_Selection == 3)
 					CLK_T = CLK_04;
 					
-				if(!CLK_T)
+				if(Toggle_Cursor)//!CLK_T
 				{
 					if(Cursor_Type == 1)
 						Cursor = smoothstep( 0.0, 2 / pix.y, CCRetical( MousecoordsXY.xy, Scale_Cursor  * 0.75 ) ) ;
