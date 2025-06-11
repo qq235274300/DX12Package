@@ -3114,8 +3114,12 @@ uniform int Extra_Information <
 				float3(0.5,0,0.5),
 				float3(0,0,0) //Black
 				};
-				int CSTT = clamp(Cursor_SC.y,0,10);
-				Color.rgb = CCArray[CSTT];
+				if (Cursor_Type != 5)
+				{
+					int CSTT = clamp(Cursor_SC.y, 0, 10);
+					Color.rgb = CCArray[CSTT];
+				}
+				
 			}
 		#if Enable_Deband_Mode
 			if(Toggle_Deband)
